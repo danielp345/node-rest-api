@@ -1,77 +1,92 @@
-const path = require('path');
-const express = require('express');
-const bodyParser = require('body-parser');
-const mongoose = require('mongoose');
-const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
-const { graphqlHTTP } = require('express-graphql');
+const path = require("path")
+const express = require("express")
+const bodyParser = require("body-parser")
+const mongoose = require("mongoose")
+const multer = require("multer")
+const { v4: uuidv4 } = require("uuid")
+const { graphqlHTTP } = require("express-graphql")
 
-const graphqlSchema = require('./graphql/schema');
-const graphqlResolver = require('./graphql/resolvers');
+const graphqlSchema = require("./graphql/schema")
+const graphqlResolver = require("./graphql/resolvers")
+const auth = require("./middleware/auth")
 
-const app = express();
+const app = express()
 
 const fileStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'images');
-  },
-  filename: (req, file, cb) => {
-    cb(null, uuidv4());
-  },
-});
+	destination: (req, file, cb) => {
+		cb(null, "images")
+	},
+	filename: (req, file, cb) => {
+		cb(null, uuidv4())
+	},
+})
 
 const fileFilter = (req, file, cb) => {
-  if (
-    file.mimetype === 'img/png' ||
-    file.mimetype ||
-    'image/jpg' ||
-    file.mimetype ||
-    'image/jpeg'
-  ) {
-    cb(null, true);
-  } else {
-    cb(null, false);
-  }
-};
+	if (
+		file.mimetype === "img/png" ||
+		file.mimetype ||
+		"image/jpg" ||
+		file.mimetype ||
+		"image/jpeg"
+	) {
+		cb(null, true)
+	} else {
+		cb(null, false)
+	}
+}
 
-app.use(bodyParser.json()); //aplication/json
+app.use(bodyParser.json()) //aplication/json
 
 app.use(
-  multer({ storage: fileStorage, fileFilter: fileFilter }).single('image')
-);
+	multer({ storage: fileStorage, fileFilter: fileFilter }).single("image")
+)
 
-app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use("/images", express.static(path.join(__dirname, "images")))
 
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, PATCH, DELETE'
-  );
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  next();
-});
+	res.setHeader("Access-Control-Allow-Origin", "*")
+	res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE")
+	res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+	if (req.method === "OPTIONS") {
+		return res.sendStatus(200)
+	}
+
+	next()
+})
+
+app.use(auth)
 
 app.use(
-  '/graphql',
-  graphqlHTTP({
-    schema: graphqlSchema,
-    rootValue: graphqlResolver,
-    graphiql: true,
-  })
-);
+	"/graphql",
+	graphqlHTTP({
+		schema: graphqlSchema,
+		rootValue: graphqlResolver,
+		graphiql: true,
+		formatError: (error) => {
+			if (!error.originalError) {
+				return error
+			}
+			const data = error.originalError.data
+			const message = error.message || "An error occured"
+			const status = error.originalError.code || 500
+
+			return { message, status, data }
+		},
+	})
+)
 
 app.use((error, req, res, next) => {
-  console.log(error);
-  const status = error.statusCode || 500;
-  const message = error.message;
-  const data = error.data;
-  res.status(status).json({ message, data });
-});
+	console.log(error)
+	const status = error.statusCode || 500
+	const message = error.message
+	const data = error.data
+	res.status(status).json({ message, data })
+})
 
 mongoose
-  .connect('mongodb+srv://admin:admin@cluster0.ohspoad.mongodb.net/messages')
-  .then(() => {
-    app.listen(8080);
-  })
-  .catch((err) => console.log(err));
+	.connect("mongodb+srv://admin:admin@cluster0.ohspoad.mongodb.net/messages")
+	.then(() => {
+		app.listen(8080)
+	})
+	.catch((err) => console.log(err))
